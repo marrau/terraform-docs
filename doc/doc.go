@@ -9,6 +9,8 @@ import (
 	"github.com/hashicorp/hcl/hcl/ast"
 )
 
+const required = "required"
+
 // Input represents a terraform input variable.
 type Input struct {
 	Name        string
@@ -30,7 +32,7 @@ func (i *Input) Value() string {
 		}
 	}
 
-	return "required"
+	return required
 }
 
 // Value represents a terraform value.
@@ -64,9 +66,27 @@ func (a outputsByName) Len() int           { return len(a) }
 func (a outputsByName) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a outputsByName) Less(i, j int) bool { return a[i].Name < a[j].Name }
 
+type inputsByRequired []Input
+
+func (a inputsByRequired) Len() int      { return len(a) }
+func (a inputsByRequired) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a inputsByRequired) Less(i, j int) bool {
+	switch {
+	// i required, j not: i gets priority
+	case a[i].Value() == required && a[j].Value() != required:
+		return true
+	// j required, i not: i does not get priority
+	case a[i].Value() != required && a[j].Value() == required:
+		return false
+	// Otherwise, sort by name
+	default:
+		return a[i].Name < a[j].Name
+	}
+}
+
 // Create creates a new *Doc from the supplied map
 // of filenames and *ast.File.
-func Create(files map[string]*ast.File) *Doc {
+func Create(files map[string]*ast.File, sortByRequired bool) *Doc {
 	doc := new(Doc)
 
 	for name, f := range files {
@@ -81,6 +101,13 @@ func Create(files map[string]*ast.File) *Doc {
 			doc.Comment = header(comments[0])
 		}
 	}
+
+    	switch {
+    	case sortByRequired:
+    		sort.Sort(inputsByRequired(doc.Inputs))
+    	default:
+    		sort.Sort(inputsByName(doc.Inputs))
+    	}
 	sort.Sort(inputsByName(doc.Inputs))
 	sort.Sort(outputsByName(doc.Outputs))
 	return doc

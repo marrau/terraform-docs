@@ -19,6 +19,7 @@ var version = "dev"
 const usage = `
   Usage:
     terraform-docs [--no-required] [json | md | markdown] <path>...
+    terraform-docs [--sort-by-required] [md | markdown] <path>...
     terraform-docs -h | --help
 
   Examples:
@@ -42,8 +43,9 @@ const usage = `
     $ terraform-docs md ./my-module ../config.tf
 
   Options:
-    -h, --help     show help information
-
+    -h, --help          Show help information
+    --no-required       Generate markdown tables of inputs and outputs, but don't print "Required" column
+    --sort-by-required  Sort the required inputs to the top of the output table
 `
 
 func main() {
@@ -89,7 +91,9 @@ func main() {
 		files[name] = f
 	}
 
-	doc := doc.Create(files)
+	sortByRequired := args["--sort-by-required"].(bool)
+	doc := doc.Create(files, sortByRequired)
+
 	printRequired := !args["--no-required"].(bool)
 
 	var out string
