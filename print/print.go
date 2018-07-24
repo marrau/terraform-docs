@@ -26,8 +26,20 @@ func Pretty(d *doc.Doc) (string, error) {
 		buf.WriteString("\n")
 
 		for _, i := range d.Providers {
-			format := "  \033[36mprovider.%s\033[0m\n  \033[90m%s\033[0m\n\n"
-			buf.WriteString(fmt.Sprintf(format, i.Name, i.Documentation))
+			format := "  \033[36mprovider.%s\033[0m\n Version: %s\n  \033[90m%s\033[0m\n  \033[90m%s\033[0m\n\n"
+			s := fmt.Sprintf(format, i.Name, i.Version, i.Documentation, strings.TrimSpace(i.Description))
+			buf.WriteString(s)
+		}
+
+		buf.WriteString("\n")
+	}
+
+	if len(d.Modules) > 0 {
+		buf.WriteString("\n")
+
+		for _, i := range d.Modules {
+			format := "  \033[36mmodule.%s\033[0m\n  \033[90m%s\033[0m\n\n"
+			buf.WriteString(fmt.Sprintf(format, i.Name, i.Description))
 		}
 
 		buf.WriteString("\n")
@@ -90,25 +102,39 @@ func Markdown(d *doc.Doc, printRequired bool) (string, error) {
 
 	if len(d.Providers) > 0 {
 		buf.WriteString("\n## Providers\n\n")
-		buf.WriteString("| Name | Documentation |\n")
-		buf.WriteString("|------|---------------|\n")
+		buf.WriteString("| Name | Description | Version |\n")
+		buf.WriteString("|------|-------------|---------|\n")
 
 		for _, i := range d.Providers {
-			format := "| %s | [%s](%s) |\n"
-			buf.WriteString(fmt.Sprintf(format, i.Name, i.Documentation, i.Documentation))
+			format := "| [%s](%s) | %s | %s |\n"
+			buf.WriteString(fmt.Sprintf(format, i.Name, i.Documentation, normalizeMarkdownDesc(i.Description), i.Version))
 		}
 
 		buf.WriteString("\n")
 	}
 
+	if len(d.Modules) > 0 {
+		buf.WriteString("\n## Modules\n\n")
+		buf.WriteString("| Name | Description | Source |\n")
+		buf.WriteString("|------|-------------|--------|\n")
+	}
+
+	for _, v := range d.Modules {
+		buf.WriteString(fmt.Sprintf("| %s | %s | %s |\n",
+			v.Name,
+			normalizeMarkdownDesc(v.Description),
+			v.Source,
+		))
+	}
+
 	if len(d.Resources) > 0 {
 		buf.WriteString("\n## Resources\n\n")
-		buf.WriteString("| Name | Type | Documentation |\n")
-		buf.WriteString("|------|------|---------------|\n")
+		buf.WriteString("| Name | Description | Type |\n")
+		buf.WriteString("|------|-------------|------|\n")
 
 		for _, i := range d.Resources {
 			format := "| %s | %s | [%s](%s) |\n"
-			buf.WriteString(fmt.Sprintf(format, i.Name, i.Type, i.Documentation, i.Documentation))
+			buf.WriteString(fmt.Sprintf(format, i.Name, normalizeMarkdownDesc(i.Description), i.Type, i.Documentation))
 		}
 
 		buf.WriteString("\n")
@@ -149,7 +175,7 @@ func Markdown(d *doc.Doc, printRequired bool) (string, error) {
 
 		if printRequired {
 			buf.WriteString(fmt.Sprintf(" %v |\n",
-				humanize(v.Default)))
+				humanize(v.Required)))
 		} else {
 			buf.WriteString("\n")
 		}
@@ -189,8 +215,8 @@ func JSON(d *doc.Doc) (string, error) {
 }
 
 // Humanize the given `v`.
-func humanize(def *doc.Value) string {
-	if def == nil {
+func humanize(def bool) string {
+	if def {
 		return "**yes**"
 	}
 

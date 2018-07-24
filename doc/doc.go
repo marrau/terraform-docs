@@ -12,16 +12,26 @@ import (
 
 const required = "required"
 
+// Module represents a terraform module block.
+type Module struct {
+	Name        string
+	Description string
+	Source      string
+}
+
 // Provider represents a terraform provider block.
 type Provider struct {
 	Name          string
+	Description   string
 	Documentation string
+	Version       string
 }
 
 // Resource represents a terraform resource block.
 type Resource struct {
 	Name          string
 	Type          string
+	Description   string
 	Documentation string
 }
 
@@ -31,6 +41,7 @@ type Input struct {
 	Description string
 	Default     *Value
 	Type        string
+	Required    bool
 }
 
 // Value returns the default value as a string.
@@ -65,11 +76,24 @@ type Output struct {
 type Doc struct {
 	Version   string
 	Comment   string
+	Modules   []Module
 	Providers []Provider
 	Resources []Resource
 	Inputs    []Input
 	Outputs   []Output
 }
+
+type modulesByName []Module
+
+func (a modulesByName) Len() int           { return len(a) }
+func (a modulesByName) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a modulesByName) Less(i, j int) bool { return a[i].Name < a[j].Name }
+
+type providersByName []Provider
+
+func (a providersByName) Len() int           { return len(a) }
+func (a providersByName) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a providersByName) Less(i, j int) bool { return a[i].Name < a[j].Name }
 
 type inputsByName []Input
 
@@ -90,10 +114,10 @@ func (a inputsByRequired) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 func (a inputsByRequired) Less(i, j int) bool {
 	switch {
 	// i required, j not: i gets priority
-	case a[i].Value() == required && a[j].Value() != required:
+	case a[i].Required && !a[j].Required:
 		return true
 	// j required, i not: i does not get priority
-	case a[i].Value() != required && a[j].Value() == required:
+	case !a[i].Required && a[j].Required:
 		return false
 	// Otherwise, sort by name
 	default:
@@ -118,6 +142,7 @@ func Create(files map[string]*ast.File, sortByRequired bool) *Doc {
 		doc.Resources = append(doc.Resources, resources(list)...)
 		doc.Inputs = append(doc.Inputs, inputs(list)...)
 		doc.Outputs = append(doc.Outputs, outputs(list)...)
+		doc.Modules = append(doc.Modules, modules(list)...)
 
 		filename := path.Base(name)
 		comments := f.Comments
@@ -127,15 +152,45 @@ func Create(files map[string]*ast.File, sortByRequired bool) *Doc {
 		}
 	}
 
-    	switch {
-    	case sortByRequired:
-    		sort.Sort(inputsByRequired(doc.Inputs))
-    	default:
-    		sort.Sort(inputsByName(doc.Inputs))
-    	}
-	sort.Sort(inputsByName(doc.Inputs))
+	switch {
+	case sortByRequired:
+		sort.Sort(inputsByRequired(doc.Inputs))
+	default:
+		sort.Sort(inputsByName(doc.Inputs))
+	}
 	sort.Sort(outputsByName(doc.Outputs))
+	sort.Sort(modulesByName(doc.Modules))
+	sort.Sort(providersByName(doc.Providers))
 	return doc
+}
+
+func modules(list *ast.ObjectList) []Module {
+	var ret []Module
+
+	for _, item := range list.Items {
+		if is(item, "module") {
+			name, _ := strconv.Unquote(item.Keys[1].Token.Text)
+			if name == "" {
+				name = item.Keys[1].Token.Text
+			}
+			items := item.Val.(*ast.ObjectType).List.Items
+			var desc string
+			switch {
+			case description(items) != "":
+				desc = description(items)
+			case item.LeadComment != nil:
+				desc = comment(item.LeadComment.List)
+			}
+			source := get(items, "source")
+			ret = append(ret, Module{
+				Name:        name,
+				Description: desc,
+				Source:      strings.TrimSpace(source.Literal),
+			})
+		}
+	}
+
+	return ret
 }
 
 // Version returns the terraform version_required string from 'list'.
@@ -160,6 +215,7 @@ func version(list *ast.ObjectList) string {
 // to their Terraform documentation.
 func providers(list *ast.ObjectList) []Provider {
 	var ret []Provider
+	var version = "Latest"
 
 	for _, item := range list.Items {
 		if is(item, "provider") {
@@ -167,9 +223,23 @@ func providers(list *ast.ObjectList) []Provider {
 			name = strings.Trim(name, "\"")
 			link := fmt.Sprintf("https://www.terraform.io/docs/providers/%s", name)
 
+			items := item.Val.(*ast.ObjectType).List.Items
+			var desc string
+			switch {
+			case description(items) != "":
+				desc = description(items)
+			case item.LeadComment != nil:
+				desc = comment(item.LeadComment.List)
+			}
+			if v := get(items, "description"); v != nil {
+				version = v.Literal
+			}
+
 			ret = append(ret, Provider{
 				Name:          name,
+				Description:   desc,
 				Documentation: link,
+				Version:       strings.TrimSpace(version),
 			})
 		}
 	}
@@ -192,13 +262,23 @@ func resources(list *ast.ObjectList) []Resource {
 
 			resourceTypes := strings.SplitN(resourceType, "_", 2)
 			namespace := resourceTypes[0]
-			item := resourceTypes[1]
-			link := fmt.Sprintf("https://www.terraform.io/docs/providers/%s/r/%s.html", namespace, item)
+			typestr := resourceTypes[1]
+			link := fmt.Sprintf("https://www.terraform.io/docs/providers/%s/r/%s.html", namespace, typestr)
+
+			items := item.Val.(*ast.ObjectType).List.Items
+			var desc string
+			switch {
+			case description(items) != "":
+				desc = description(items)
+			case item.LeadComment != nil:
+				desc = comment(item.LeadComment.List)
+			}
 
 			ret = append(ret, Resource{
 				Name:          name,
 				Type:          resourceType,
 				Documentation: link,
+				Description:   desc,
 			})
 		}
 	}
@@ -240,6 +320,7 @@ func inputs(list *ast.ObjectList) []Input {
 				Description: desc,
 				Default:     def,
 				Type:        itemType,
+				Required:    def == nil,
 			})
 		}
 	}
