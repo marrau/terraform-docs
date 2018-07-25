@@ -87,6 +87,12 @@ func (a modulesByName) Len() int           { return len(a) }
 func (a modulesByName) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a modulesByName) Less(i, j int) bool { return a[i].Name < a[j].Name }
 
+type resourcesByName []Resource
+
+func (a resourcesByName) Len() int           { return len(a) }
+func (a resourcesByName) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a resourcesByName) Less(i, j int) bool { return a[i].Name < a[j].Name }
+
 type providersByName []Provider
 
 func (a providersByName) Len() int           { return len(a) }
@@ -159,6 +165,7 @@ func Create(files map[string]*ast.File, sortByRequired bool) Doc {
 	sort.Sort(outputsByName(doc.Outputs))
 	sort.Sort(modulesByName(doc.Modules))
 	sort.Sort(providersByName(doc.Providers))
+	sort.Sort(resourcesByName(doc.Resources))
 	return *doc
 }
 
