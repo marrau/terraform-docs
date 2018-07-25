@@ -10,8 +10,6 @@ import (
 	"github.com/hashicorp/hcl/hcl/ast"
 )
 
-const required = "required"
-
 // Module represents a terraform module block.
 type Module struct {
 	Name        string
@@ -39,17 +37,17 @@ type Resource struct {
 type Input struct {
 	Name        string
 	Description string
-	Default     *Value
+	Default     string
 	Type        string
 	Required    bool
 }
 
 // Value returns the default value as a string.
-func (i *Input) Value() string {
-	if i.Default != nil {
-		switch i.Default.Type {
+func value(v *Value) string {
+	if v != nil {
+		switch v.Type {
 		case "string":
-			return i.Default.Literal
+			return v.Literal
 		case "map":
 			return "<map>"
 		case "list":
@@ -57,7 +55,7 @@ func (i *Input) Value() string {
 		}
 	}
 
-	return required
+	return "-"
 }
 
 // Value represents a terraform value.
@@ -127,15 +125,15 @@ func (a inputsByRequired) Less(i, j int) bool {
 
 // Create creates a new *Doc from the supplied map
 // of filenames and *ast.File.
-func Create(files map[string]*ast.File, sortByRequired bool) *Doc {
+func Create(files map[string]*ast.File, sortByRequired bool) Doc {
 	doc := new(Doc)
 
 	for name, f := range files {
 		list := f.Node.(*ast.ObjectList)
 
-		required_version := version(list)
-		if len(required_version) > 0 {
-			doc.Version = required_version
+		requiredVersion := version(list)
+		if len(requiredVersion) > 0 {
+			doc.Version = requiredVersion
 		}
 
 		doc.Providers = append(doc.Providers, providers(list)...)
@@ -161,7 +159,7 @@ func Create(files map[string]*ast.File, sortByRequired bool) *Doc {
 	sort.Sort(outputsByName(doc.Outputs))
 	sort.Sort(modulesByName(doc.Modules))
 	sort.Sort(providersByName(doc.Providers))
-	return doc
+	return *doc
 }
 
 func modules(list *ast.ObjectList) []Module {
@@ -318,7 +316,7 @@ func inputs(list *ast.ObjectList) []Input {
 			ret = append(ret, Input{
 				Name:        name,
 				Description: desc,
-				Default:     def,
+				Default:     value(def),
 				Type:        itemType,
 				Required:    def == nil,
 			})

@@ -4,13 +4,22 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"log"
+	"os"
 	"strings"
+
+	"html/template"
 
 	"github.com/segmentio/terraform-docs/doc"
 )
 
+type templateStruct struct {
+	Doc           doc.Doc
+	PrintRequired bool
+}
+
 // Pretty printer pretty prints a doc.
-func Pretty(d *doc.Doc) (string, error) {
+func Pretty(d doc.Doc) (string, error) {
 	var buf bytes.Buffer
 
 	if len(d.Comment) > 0 {
@@ -67,7 +76,7 @@ func Pretty(d *doc.Doc) (string, error) {
 				desc = "-"
 			}
 
-			buf.WriteString(fmt.Sprintf(format, i.Name, i.Value(), desc))
+			buf.WriteString(fmt.Sprintf(format, i.Name, i.Default, desc))
 		}
 
 		buf.WriteString("\n")
@@ -88,116 +97,40 @@ func Pretty(d *doc.Doc) (string, error) {
 	return buf.String(), nil
 }
 
-// Markdown prints the given doc as markdown.
-func Markdown(d *doc.Doc, printRequired bool) (string, error) {
-	var buf bytes.Buffer
+// PrintTemplate uses a txt/template to handle print of the documentation
+func Template(templateName string, d doc.Doc, printRequired bool) (string, error) {
+	templateFile, err := TemplateDir.Open(templateName + ".tmpl")
+	if err != nil {
+		log.Fatalln("Cannot open template", err)
+	}
+	defer templateFile.Close()
 
-	if len(d.Comment) > 0 {
-		buf.WriteString(fmt.Sprintf("%s\n", d.Comment))
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(templateFile)
+
+	templateContent := buf.String()
+
+	tpl := template.New("printtemplate").Funcs(template.FuncMap{
+		"normalize": normalize,
+		"humanize":  humanize,
+	})
+
+	printTemplate, err := tpl.Parse(templateContent)
+	if err != nil {
+		log.Fatalln("Cannot parse template", err)
 	}
 
-	if len(d.Version) > 0 {
-		buf.WriteString(fmt.Sprintf("Terraform required version %s\n", d.Version))
-	}
+	buf.Reset()
+	err = printTemplate.Execute(buf, templateStruct{
+		Doc:           d,
+		PrintRequired: printRequired,
+	})
 
-	if len(d.Providers) > 0 {
-		buf.WriteString("\n## Providers\n\n")
-		buf.WriteString("| Name | Description | Version |\n")
-		buf.WriteString("|------|-------------|---------|\n")
-
-		for _, i := range d.Providers {
-			format := "| [%s](%s) | %s | %s |\n"
-			buf.WriteString(fmt.Sprintf(format, i.Name, i.Documentation, normalizeMarkdownDesc(i.Description), i.Version))
-		}
-
-		buf.WriteString("\n")
-	}
-
-	if len(d.Modules) > 0 {
-		buf.WriteString("\n## Modules\n\n")
-		buf.WriteString("| Name | Description | Source |\n")
-		buf.WriteString("|------|-------------|--------|\n")
-	}
-
-	for _, v := range d.Modules {
-		buf.WriteString(fmt.Sprintf("| %s | %s | %s |\n",
-			v.Name,
-			normalizeMarkdownDesc(v.Description),
-			v.Source,
-		))
-	}
-
-	if len(d.Resources) > 0 {
-		buf.WriteString("\n## Resources\n\n")
-		buf.WriteString("| Name | Description | Type |\n")
-		buf.WriteString("|------|-------------|------|\n")
-
-		for _, i := range d.Resources {
-			format := "| %s | %s | [%s](%s) |\n"
-			buf.WriteString(fmt.Sprintf(format, i.Name, normalizeMarkdownDesc(i.Description), i.Type, i.Documentation))
-		}
-
-		buf.WriteString("\n")
-	}
-
-	if len(d.Inputs) > 0 {
-		buf.WriteString("\n## Inputs\n\n")
-		buf.WriteString("| Name | Description | Type | Default |")
-
-		if printRequired {
-			buf.WriteString(" Required |\n")
-		} else {
-			buf.WriteString("\n")
-		}
-
-		buf.WriteString("|------|-------------|:----:|:-----:|")
-		if printRequired {
-			buf.WriteString(":-----:|\n")
-		} else {
-			buf.WriteString("\n")
-		}
-	}
-
-	for _, v := range d.Inputs {
-		def := v.Value()
-
-		if def == "required" {
-			def = "-"
-		} else {
-			def = fmt.Sprintf("`%s`", def)
-		}
-
-		buf.WriteString(fmt.Sprintf("| %s | %s | %s | %s |",
-			v.Name,
-			normalizeMarkdownDesc(v.Description),
-			v.Type,
-			normalizeMarkdownDesc(def)))
-
-		if printRequired {
-			buf.WriteString(fmt.Sprintf(" %v |\n",
-				humanize(v.Required)))
-		} else {
-			buf.WriteString("\n")
-		}
-	}
-
-	if len(d.Outputs) > 0 {
-		buf.WriteString("\n## Outputs\n\n")
-		buf.WriteString("| Name | Description |\n")
-		buf.WriteString("|------|-------------|\n")
-	}
-
-	for _, v := range d.Outputs {
-		buf.WriteString(fmt.Sprintf("| %s | %s |\n",
-			v.Name,
-			normalizeMarkdownDesc(v.Description)))
-	}
-
-	return buf.String(), nil
+	return buf.String(), err
 }
 
 // JSON prints the given doc as json.
-func JSON(d *doc.Doc) (string, error) {
+func JSON(d doc.Doc) (string, error) {
 	s, err := json.MarshalIndent(d, "", "  ")
 	if err != nil {
 		return "", err
@@ -229,4 +162,22 @@ func humanize(def bool) string {
 //  * A second pass replaces all other newlines with spaces
 func normalizeMarkdownDesc(s string) string {
 	return strings.Replace(strings.Replace(strings.TrimSpace(s), "\n\n", "<br><br>", -1), "\n", " ", -1)
+}
+
+// normalize prints out "-" for empty strings else does the same as normalizeMarkdownDesc
+func normalize(s string) string {
+	if s == "" {
+		return "-"
+	}
+	return normalizeMarkdownDesc(s)
+}
+
+// Exists reports whether the named file or directory exists.
+func fileExists(name string) bool {
+	if _, err := os.Stat(name); err != nil {
+		if os.IsNotExist(err) {
+			return false
+		}
+	}
+	return true
 }

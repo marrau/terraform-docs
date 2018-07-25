@@ -4,7 +4,10 @@ B="-X main.version=$(V)"
 
 CGO_ENABLED=0 
 
-dist:
+generate:
+	go generate
+
+dist: generate
 	@gox \
 		--os "linux" \
 		--output "dist/{{.Dir}}_{{.OS}}_{{.Arch}}" \

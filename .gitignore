@@ -1,1 +1,3 @@
 dist
+terraform-docs
+**/*_vfsdata.go

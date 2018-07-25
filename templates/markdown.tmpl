@@ -1,0 +1,58 @@
+{{ $printRequired := .PrintRequired -}}
+
+{{ if .Doc.Comment -}}
+{{ .Doc.Comment }}
+{{ end -}}
+{{ if .Doc.Version }}
+Terrform required version {{ .Doc.Version }}
+{{ end -}}
+
+{{ if .Doc.Providers -}}
+## Providers
+
+| Name | Description | Version |
+|------|-------------|---------|
+{{ range .Doc.Providers -}}
+| [{{ .Name }}]({{ .Documentation }}) | {{ normalize .Description }} | {{ .Version }} |
+{{ end -}}
+{{ end -}}
+
+{{ if .Doc.Modules }}
+## Modules
+
+| Name | Description | Source |
+|------|-------------|--------|
+{{ range .Doc.Modules -}}
+| {{ .Name }} | {{ normalize .Description }} | {{ .Source }} |
+{{ end -}}
+{{ end -}}
+
+{{ if .Doc.Resources }}
+## Resources
+
+| Name | Description | Type |
+|------|-------------|------|
+{{ range .Doc.Resources -}}
+| {{ .Name }} | {{ normalize .Description }} | [{{ .Type }}]({{ .Documentation }}) |
+{{ end -}}
+{{ end -}}
+
+{{ if .Doc.Inputs }}
+## Inputs
+
+| Name | Description | Type | Default |{{ if $printRequired }} Required |{{ end }}
+|------|-------------|:----:|:-----:|{{ if $printRequired }}:-----:|{{ end }}
+{{ range .Doc.Inputs -}}
+| {{ .Name }} | {{ normalize .Description }} | {{ .Type }} | {{ normalize .Default }} |{{ if $printRequired }} {{ humanize .Required }} |{{ end }}
+{{ end -}}
+{{ end -}}
+
+{{- if .Doc.Outputs }}
+## Outputs
+
+| Name | Description |
+|------|-------------|
+{{ range .Doc.Outputs -}}
+| {{ .Name }} | {{ normalize .Description }} |
+{{ end -}}
+{{ end -}}

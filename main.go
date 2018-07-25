@@ -1,3 +1,5 @@
+//go:generate go run assets_generate.go
+
 package main
 
 import (
@@ -99,12 +101,12 @@ func main() {
 	var out string
 
 	switch {
-	case args["markdown"].(bool):
-		out, err = print.Markdown(doc, printRequired)
-	case args["md"].(bool):
-		out, err = print.Markdown(doc, printRequired)
 	case args["json"].(bool):
 		out, err = print.JSON(doc)
+	case args["markdown"].(bool):
+		out, err = print.Template("markdown", doc, printRequired)
+	case args["md"].(bool):
+		out, err = print.Template("markdown", doc, printRequired)
 	default:
 		out, err = print.Pretty(doc)
 	}
