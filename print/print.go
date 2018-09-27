@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"strings"
 
 	"html/template"
 
+	"github.com/Masterminds/sprig"
 	"github.com/segmentio/terraform-docs/doc"
 )
 
@@ -97,7 +99,7 @@ func Pretty(d doc.Doc) (string, error) {
 	return buf.String(), nil
 }
 
-// PrintTemplate uses a txt/template to handle print of the documentation
+// Template uses a txt/template to handle print of the documentation using a template-sample
 func Template(templateName string, d doc.Doc, printRequired bool) (string, error) {
 	templateFile, err := TemplateDir.Open(templateName + ".tmpl")
 	if err != nil {
@@ -110,10 +112,29 @@ func Template(templateName string, d doc.Doc, printRequired bool) (string, error
 
 	templateContent := buf.String()
 
-	tpl := template.New("printtemplate").Funcs(template.FuncMap{
-		"normalize": normalize,
-		"humanize":  humanize,
-	})
+	return TemplateByString(templateContent, d, printRequired)
+}
+
+// TemplateByFile uses a txt/template to handle print of the documentation using a file on your disk
+func TemplateByFile(templateFile string, d doc.Doc, printRequired bool) (string, error) {
+	dat, err := ioutil.ReadFile(templateFile)
+	if err != nil {
+		log.Fatalln("Cannot open template-file", err)
+	}
+
+	return TemplateByString(string(dat), d, printRequired)
+}
+
+// TemplateByString uses a txt/template to handle print of the documentation using a string as template
+func TemplateByString(templateContent string, d doc.Doc, printRequired bool) (string, error) {
+	buf := new(bytes.Buffer)
+
+	funcMap := sprig.FuncMap()
+	funcMap["normalize"] = normalize
+	funcMap["humanize"] = humanize
+	funcMap["include"] = TemplateByFile
+
+	tpl := template.New("printtemplate").Funcs(funcMap)
 
 	printTemplate, err := tpl.Parse(templateContent)
 	if err != nil {

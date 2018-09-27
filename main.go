@@ -20,8 +20,8 @@ var version = "dev"
 
 const usage = `
   Usage:
-    terraform-docs [--no-required] [json | md | markdown] <path>...
-    terraform-docs [--sort-by-required] [md | markdown] <path>...
+    terraform-docs [--no-required] [json | md | markdown | tpl <template-path>] <path>...
+    terraform-docs [--sort-by-required] [md | markdown | tpl <template-path>] <path>...
     terraform-docs -h | --help
 
   Examples:
@@ -36,13 +36,16 @@ const usage = `
     $ terraform-docs json ./my-module
 
     # Generate markdown tables of inputs and outputs
-    $ terraform-docs md ./my-module
+	$ terraform-docs md ./my-module
 
     # Generate markdown tables of inputs and outputs, but don't print "Required" column
     $ terraform-docs --no-required md ./my-module
 
     # Generate markdown tables of inputs and outputs for the given module and ../config.tf
-    $ terraform-docs md ./my-module ../config.tf
+	$ terraform-docs md ./my-module ../config.tf
+	
+    # Generate templated output
+    $ terraform-docs tpl path/to/template-file ./my-module		
 
   Options:
     -h, --help          Show help information
@@ -107,6 +110,8 @@ func main() {
 		out, err = print.Template("markdown", doc, printRequired)
 	case args["md"].(bool):
 		out, err = print.Template("markdown", doc, printRequired)
+	case args["tpl"].(bool):
+		out, err = print.TemplateByFile(args["<template-path>"].(string), doc, printRequired)
 	default:
 		out, err = print.Pretty(doc)
 	}

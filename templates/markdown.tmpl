@@ -1,5 +1,7 @@
 {{ $printRequired := .PrintRequired -}}
 
+{{ include "disclaimer.md" .Doc .PrintRequired }}
+
 {{ if .Doc.Comment -}}
 {{ .Doc.Comment }}
 {{ end -}}
