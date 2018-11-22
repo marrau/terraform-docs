@@ -237,6 +237,9 @@ func providers(list *ast.ObjectList) []Provider {
 				desc = comment(item.LeadComment.List)
 			}
 			if v := get(items, "description"); v != nil {
+				desc = v.Literal
+			}
+			if v := get(items, "version"); v != nil {
 				version = v.Literal
 			}
 

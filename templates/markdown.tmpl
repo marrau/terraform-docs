@@ -1,11 +1,9 @@
 {{ $printRequired := .PrintRequired -}}
 
-{{ include "disclaimer.md" .Doc .PrintRequired }}
-
 {{ if .Doc.Comment -}}
 {{ .Doc.Comment }}
 {{ end -}}
-{{ if .Doc.Version }}
+{{- if .Doc.Version }}
 Terrform required version {{ .Doc.Version }}
 {{ end -}}
 
