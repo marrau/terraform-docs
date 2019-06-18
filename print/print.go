@@ -2,105 +2,33 @@ package print
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
+	"path"
+	"path/filepath"
+	"regexp"
 	"strings"
 
 	"html/template"
 
 	"github.com/Masterminds/sprig"
-	"github.com/segmentio/terraform-docs/doc"
+	"github.com/hashicorp/terraform/config"
 )
 
 type templateStruct struct {
-	Doc           doc.Doc
+	Config        config.Config
 	PrintRequired bool
 }
 
 // Pretty printer pretty prints a doc.
-func Pretty(d doc.Doc) (string, error) {
-	var buf bytes.Buffer
-
-	if len(d.Comment) > 0 {
-		buf.WriteString(fmt.Sprintf("\n%s\n", d.Comment))
-	}
-
-	if len(d.Version) > 0 {
-		format := "  \033[36mterraform.required_version\033[0m (%s)\n\n\n"
-		buf.WriteString(fmt.Sprintf(format, d.Version))
-	}
-
-	if len(d.Providers) > 0 {
-		buf.WriteString("\n")
-
-		for _, i := range d.Providers {
-			format := "  \033[36mprovider.%s\033[0m\n Version: %s\n  \033[90m%s\033[0m\n  \033[90m%s\033[0m\n\n"
-			s := fmt.Sprintf(format, i.Name, i.Version, i.Documentation, strings.TrimSpace(i.Description))
-			buf.WriteString(s)
-		}
-
-		buf.WriteString("\n")
-	}
-
-	if len(d.Modules) > 0 {
-		buf.WriteString("\n")
-
-		for _, i := range d.Modules {
-			format := "  \033[36mmodule.%s\033[0m\n  \033[90m%s\033[0m\n\n"
-			buf.WriteString(fmt.Sprintf(format, i.Name, i.Description))
-		}
-
-		buf.WriteString("\n")
-	}
-
-	if len(d.Resources) > 0 {
-		buf.WriteString("\n")
-
-		for _, i := range d.Resources {
-			format := "  \033[36mresource.%s.%s\033[0m\n  \033[90m%s\033[0m\n\n"
-			buf.WriteString(fmt.Sprintf(format, i.Type, i.Name, i.Documentation))
-		}
-
-		buf.WriteString("\n")
-	}
-
-	if len(d.Inputs) > 0 {
-		buf.WriteString("\n")
-
-		for _, i := range d.Inputs {
-			format := "  \033[36mvar.%s\033[0m (%s)\n  \033[90m%s\033[0m\n\n"
-			desc := i.Description
-
-			if desc == "" {
-				desc = "-"
-			}
-
-			buf.WriteString(fmt.Sprintf(format, i.Name, i.Default, desc))
-		}
-
-		buf.WriteString("\n")
-	}
-
-	if len(d.Outputs) > 0 {
-		buf.WriteString("\n")
-
-		for _, i := range d.Outputs {
-			format := "  \033[36moutput.%s\033[0m\n  \033[90m%s\033[0m\n\n"
-			s := fmt.Sprintf(format, i.Name, strings.TrimSpace(i.Description))
-			buf.WriteString(s)
-		}
-
-		buf.WriteString("\n")
-	}
-
-	return buf.String(), nil
+func Pretty(cfg *config.Config) (string, error) {
+	return Template("pretty", cfg, true)
 }
 
 // Template uses a txt/template to handle print of the documentation using a template-sample
-func Template(templateName string, d doc.Doc, printRequired bool) (string, error) {
+func Template(templateName string, cfg *config.Config, printRequired bool) (string, error) {
 	templateFile, err := TemplateDir.Open(templateName + ".tmpl")
 	if err != nil {
 		log.Fatalln("Cannot open template", err)
@@ -112,27 +40,30 @@ func Template(templateName string, d doc.Doc, printRequired bool) (string, error
 
 	templateContent := buf.String()
 
-	return TemplateByString(templateContent, d, printRequired)
+	return TemplateByString(templateContent, cfg, printRequired)
 }
 
 // TemplateByFile uses a txt/template to handle print of the documentation using a file on your disk
-func TemplateByFile(templateFile string, d doc.Doc, printRequired bool) (string, error) {
+func TemplateByFile(templateFile string, cfg *config.Config, printRequired bool) (string, error) {
 	dat, err := ioutil.ReadFile(templateFile)
 	if err != nil {
 		log.Fatalln("Cannot open template-file", err)
 	}
 
-	return TemplateByString(string(dat), d, printRequired)
+	return TemplateByString(string(dat), cfg, printRequired)
 }
 
 // TemplateByString uses a txt/template to handle print of the documentation using a string as template
-func TemplateByString(templateContent string, d doc.Doc, printRequired bool) (string, error) {
+func TemplateByString(templateContent string, cfg *config.Config, printRequired bool) (string, error) {
 	buf := new(bytes.Buffer)
 
 	funcMap := sprig.FuncMap()
 	funcMap["normalize"] = normalize
 	funcMap["humanize"] = humanize
 	funcMap["include"] = TemplateByFile
+	funcMap["html"] = htmlSafe
+	funcMap["tfDocUrl"] = getTerraformDocumentationURL
+	funcMap["relPath"] = relPath
 
 	tpl := template.New("printtemplate").Funcs(funcMap)
 
@@ -143,29 +74,15 @@ func TemplateByString(templateContent string, d doc.Doc, printRequired bool) (st
 
 	buf.Reset()
 	err = printTemplate.Execute(buf, templateStruct{
-		Doc:           d,
+		Config:        *cfg,
 		PrintRequired: printRequired,
 	})
 
 	return buf.String(), err
 }
 
-// JSON prints the given doc as json.
-func JSON(d doc.Doc) (string, error) {
-	s, err := json.MarshalIndent(d, "", "  ")
-	if err != nil {
-		return "", err
-	}
-
-	// <, >, and & are printed as code points by the json package.
-	// The brackets are needed to pretty-print required_version.
-	// Convert the brackets back into printable chars, limiting the
-	// number of printed brackets to 1 each, which is enough to
-	// prevent HTML injection (json's concern - why they encode).
-	jsonString := strings.Replace(string(s), "\\u003c", "<", 1)
-	jsonString = strings.Replace(jsonString, "\\u003e", ">", 1)
-
-	return jsonString, nil
+func htmlSafe(s string) template.HTML {
+	return template.HTML(s)
 }
 
 // Humanize the given `v`.
@@ -186,11 +103,35 @@ func normalizeMarkdownDesc(s string) string {
 }
 
 // normalize prints out "-" for empty strings else does the same as normalizeMarkdownDesc
-func normalize(s string) string {
-	if s == "" {
-		return "-"
+func normalize(in interface{}) interface{} {
+	if s, ok := in.(string); ok {
+		if s == "" {
+			return "-"
+		}
+		return normalizeMarkdownDesc(s)
 	}
-	return normalizeMarkdownDesc(s)
+
+	return in
+}
+
+func getTerraformDocumentationURL(object interface{}) string {
+	if provider, ok := object.(*config.ProviderConfig); ok {
+		return fmt.Sprintf("https://www.terraform.io/docs/providers/%s/index.html", strings.Replace(provider.Name, "-beta", "", -1))
+	}
+	if resource, ok := object.(*config.Resource); ok {
+		rxp, err := regexp.Compile("[a-z]+")
+		if err != nil {
+			log.Fatal(err)
+		}
+		provider := rxp.FindString(resource.Type)
+		typeName := strings.Replace(resource.Type, provider+"_", "", -1)
+		resourceSubPath := "r"
+		if resource.Mode == config.DataResourceMode {
+			resourceSubPath = "d"
+		}
+		return fmt.Sprintf("https://www.terraform.io/docs/providers/%s/%s/%s.html", provider, resourceSubPath, typeName)
+	}
+	return ""
 }
 
 // Exists reports whether the named file or directory exists.
@@ -201,4 +142,12 @@ func fileExists(name string) bool {
 		}
 	}
 	return true
+}
+
+func relPath(dir string) string {
+	p, err := filepath.Rel(path.Dir(dir), dir)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return p
 }

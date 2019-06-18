@@ -4,15 +4,11 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"log"
-	"os"
-	"path/filepath"
 
-	"github.com/hashicorp/hcl"
-	"github.com/hashicorp/hcl/hcl/ast"
-	"github.com/segmentio/terraform-docs/doc"
+	"github.com/hashicorp/terraform/config"
 	"github.com/segmentio/terraform-docs/print"
+
 	"github.com/tj/docopt"
 )
 
@@ -20,8 +16,8 @@ var version = "dev"
 
 const usage = `
   Usage:
-    terraform-docs [--no-required] [json | md | markdown | tpl <template-path>] <path>...
-    terraform-docs [--sort-by-required] [md | markdown | tpl <template-path>] <path>...
+    terraform-docs [--no-required] [md | markdown | tpl <template-path>] <path>
+    terraform-docs [--sort-by-required] [md | markdown | tpl <template-path>] <path>
     terraform-docs -h | --help
 
   Examples:
@@ -31,9 +27,6 @@ const usage = `
 
     # View inputs and outputs for variables.tf and outputs.tf only
     $ terraform-docs variables.tf outputs.tf
-
-    # Generate a JSON of inputs and outputs
-    $ terraform-docs json ./my-module
 
     # Generate markdown tables of inputs and outputs
 	$ terraform-docs md ./my-module
@@ -59,61 +52,28 @@ func main() {
 		log.Fatal(err)
 	}
 
-	var names []string
-	paths := args["<path>"].([]string)
-	for _, p := range paths {
-		pi, err := os.Stat(p)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		if !pi.IsDir() {
-			names = append(names, p)
-			continue
-		}
-
-		files, err := filepath.Glob(fmt.Sprintf("%s/*.tf", p))
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		names = append(names, files...)
-	}
-
-	files := make(map[string]*ast.File, len(names))
-
-	for _, name := range names {
-		buf, err := ioutil.ReadFile(name)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		f, err := hcl.ParseBytes(buf)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		files[name] = f
+	cfg, err := config.LoadDir(args["<path>"].(string))
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	sortByRequired := args["--sort-by-required"].(bool)
-	doc := doc.Create(files, sortByRequired)
+	print.Sort(cfg, sortByRequired)
 
 	printRequired := !args["--no-required"].(bool)
 
 	var out string
 
 	switch {
-	case args["json"].(bool):
-		out, err = print.JSON(doc)
 	case args["markdown"].(bool):
-		out, err = print.Template("markdown", doc, printRequired)
+		out, err = print.Template("markdown", cfg, printRequired)
 	case args["md"].(bool):
-		out, err = print.Template("markdown", doc, printRequired)
+		out, err = print.Template("markdown", cfg, printRequired)
 	case args["tpl"].(bool):
-		out, err = print.TemplateByFile(args["<template-path>"].(string), doc, printRequired)
+		templateName := args["<template-path>"].(string)
+		out, err = print.TemplateByFile(templateName, cfg, printRequired)
 	default:
-		out, err = print.Pretty(doc)
+		out, err = print.Template("pretty", cfg, printRequired)
 	}
 
 	if err != nil {

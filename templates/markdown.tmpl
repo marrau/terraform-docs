@@ -1,58 +1,55 @@
-{{ $printRequired := .PrintRequired -}}
+# {{relPath .Config.Dir}}
 
-{{ if .Doc.Comment -}}
-{{ .Doc.Comment }}
-{{ end -}}
-{{- if .Doc.Version }}
-Terrform required version {{ .Doc.Version }}
-{{ end -}}
+{{ if .Config.Terraform.RequiredVersion }}
+Terrform required version {{ .Config.Terraform.RequiredVersion }}
+{{ end }}
 
-{{ if .Doc.Providers -}}
+{{ if .Config.ProviderConfigs -}}
 ## Providers
 
-| Name | Description | Version |
-|------|-------------|---------|
-{{ range .Doc.Providers -}}
-| [{{ .Name }}]({{ .Documentation }}) | {{ normalize .Description }} | {{ .Version }} |
+| Name | Alias | Version |
+|------|-------|---------|
+{{ range .Config.ProviderConfigs -}}
+| [{{ .Name }}]({{tfDocUrl .}}) | {{ .Alias }} | {{ .Version }} |
 {{ end -}}
 {{ end -}}
 
-{{ if .Doc.Modules }}
+{{ if .Config.Modules }}
 ## Modules
 
-| Name | Description | Source |
+| Name | Version | Source |
 |------|-------------|--------|
-{{ range .Doc.Modules -}}
-| {{ .Name }} | {{ normalize .Description }} | {{ .Source }} |
+{{ range .Config.Modules -}}
+| {{ .Name }} | {{ .Version }} | {{ .Source }} |
 {{ end -}}
 {{ end -}}
 
-{{ if .Doc.Resources }}
+{{ if .Config.Resources }}
 ## Resources
 
-| Name | Description | Type |
-|------|-------------|------|
-{{ range .Doc.Resources -}}
-| {{ .Name }} | {{ normalize .Description }} | [{{ .Type }}]({{ .Documentation }}) |
+| Name | Type |
+|------|------|
+{{ range .Config.Resources -}}
+| {{ .Name }} | [{{ .Type }}]({{tfDocUrl .}}) |
 {{ end -}}
 {{ end -}}
 
-{{ if .Doc.Inputs }}
+{{ if .Config.Variables }}
 ## Inputs
 
-| Name | Description | Type | Default |{{ if $printRequired }} Required |{{ end }}
-|------|-------------|:----:|:-----:|{{ if $printRequired }}:-----:|{{ end }}
-{{ range .Doc.Inputs -}}
-| {{ .Name }} | {{ normalize .Description }} | {{ .Type }} | {{ normalize .Default }} |{{ if $printRequired }} {{ humanize .Required }} |{{ end }}
+| Name | Description | Type | Default |{{ if $.PrintRequired }} Required |{{ end }}
+|------|-------------|:----:|:-----:|{{ if $.PrintRequired }}:-----:|{{ end }}
+{{ range .Config.Variables -}}
+| {{ .Name }} | {{ normalize .Description }} | {{ .Type.Printable }} | {{ normalize .Default }} |{{ if $.PrintRequired }} {{ humanize .Required }} |{{ end }}
 {{ end -}}
 {{ end -}}
 
-{{- if .Doc.Outputs }}
+{{- if .Config.Outputs }}
 ## Outputs
 
 | Name | Description |
 |------|-------------|
-{{ range .Doc.Outputs -}}
+{{ range .Config.Outputs -}}
 | {{ .Name }} | {{ normalize .Description }} |
 {{ end -}}
 {{ end -}}

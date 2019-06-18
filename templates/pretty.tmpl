@@ -1,0 +1,41 @@
+terraform.required_version  ({{html .Config.Terraform.RequiredVersion}})
+
+{{- if len .Config.ProviderConfigs }}
+{{ range .Config.ProviderConfigs }}
+provider.{{.Name}}
+  alias: {{.Alias}}
+  version: {{.Version}}
+{{ end }}
+{{ end -}}
+
+{{- if len .Config.Modules }}
+{{ range .Config.Modules }}
+module.{{.Name}}
+  source: {{.Source}}
+  version: {{.Version}}
+{{ end }}
+{{ end -}}
+
+{{- if len .Config.Resources }}
+{{ range .Config.Resources }}
+resource.{{.Name}}
+  type: {{.Type}}
+{{ end }}
+{{ end -}}
+
+
+{{- if len .Config.Variables }}
+{{ range .Config.Variables }}
+var.{{.Name}}
+  description: {{.Description}}
+  type: {{.DeclaredType}} 
+  default: {{.Default}}
+{{ end }}
+{{ end -}}
+
+{{- if len .Config.Outputs }}
+{{ range .Config.Outputs }}
+output.{{.Name}}
+  description: {{.Description}}
+{{ end }}
+{{ end -}}
