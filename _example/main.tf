@@ -13,6 +13,8 @@ terraform {
 
 provider "google" {
   alias = "test"
+
+  required_version = "~> 2.20"
 }
 
 provider "google-beta" {
@@ -21,13 +23,41 @@ provider "google-beta" {
 
 // liasdhfjasodifuh
 variable "subnet_ids" {
-  description = "subnet ids"
   description = "a comma-separated list of subnet IDs"
+  type        = string
 }
 
 variable "security_group_ids" {
   description = "anitgher amore"
   default     = "sg-a, sg-b"
+}
+
+variable "something_list" {
+  description = "A list"
+  default     = ["abc"]
+}
+
+variable "required_list" {
+  description = "A list"
+  type        = list
+}
+
+variable "aboolean" {
+  description = "A list"
+  type        = bool
+}
+
+
+variable "richobject" {
+  description = "more Fun"
+  type = object({
+    value = string
+    test  = number
+  })
+  default = {
+    value = "somevalue"
+    test  = 123
+  }
 }
 
 variable "amis" {
@@ -47,11 +77,18 @@ variable "amis" {
 
 data "google_compute_zones" "zones" {}
 
-resource "google_compute_instance" "someinstance" {}
+resource "google_compute_instance" "someinstance" {
+  provider = test
+}
 
 module "somemodule" {
   source = "./module/dir"
 }
+
+locals {
+  test = var.security_group_ids
+}
+
 
 // The VPC ID.
 output "vpc_id" {

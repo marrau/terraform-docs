@@ -1,55 +1,117 @@
-# {{relPath .Config.Dir}}
-
-{{ if .Config.Terraform.RequiredVersion }}
-Terrform required version {{ .Config.Terraform.RequiredVersion }}
-{{ end }}
-
-{{ if .Config.ProviderConfigs -}}
-## Providers
-
-| Name | Alias | Version |
-|------|-------|---------|
-{{ range .Config.ProviderConfigs -}}
-| [{{ .Name }}]({{tfDocUrl .}}) | {{ .Alias }} | {{ .Version }} |
-{{ end -}}
+{{- $readme := (printf "%s/HEAD.md" .Path) }}
+{{- if fileExists $readme }}
+{{ include $readme . }}
+{{ else }}
+# {{ .Path }}
 {{ end -}}
 
-{{ if .Config.Modules }}
-## Modules
+## Example
 
-| Name | Version | Source |
-|------|-------------|--------|
-{{ range .Config.Modules -}}
-| {{ .Name }} | {{ .Version }} | {{ .Source }} |
-{{ end -}}
-{{ end -}}
+{{- define "VARIABLE_VALUE" -}}
+    {{- $guess := guessType . -}}    
+    {{- if eq $guess.Type "map" }} {
+        {{- range $k, $v := $guess.Value }}
+        {{$k}} = {{template "VARIABLE_VALUE" $v }},
+        {{- end }}
+    }
+    {{- else if eq $guess.Type "object" -}} {
+        {{- range $_, $v := $guess.Nested }}
+        {{$v.Name}} = {{template "VARIABLE_VALUE" $v.Value }}
+        {{- end }}
+    }
+    {{- else if eq $guess.Type "list" -}} [
+        {{- range $_, $v := $guess.Value }}
+        {{template "VARIABLE_VALUE" $v }},
+        {{- end }}
+    ]
+    {{- else if eq $guess.Type "string" -}} 
+        "{{ $guess.Value }}"
+    {{- else }} {{ $guess.Value }}
+    {{- end }}
+{{- end }}
 
-{{ if .Config.Resources }}
-## Resources
+{{- define "VARIABLE" }}
+    {{ .Name }} = {{template "VARIABLE_VALUE" .}}
+{{- end }}
 
-| Name | Type |
-|------|------|
-{{ range .Config.Resources -}}
-| {{ .Name }} | [{{ .Type }}]({{tfDocUrl .}}) |
-{{ end -}}
-{{ end -}}
+```hcl
+module "example" {
+    source = "{{.Path}}"
+        
+    {{- with .Variables }}    
+{{- range $_, $res := . }}
+    {{template "VARIABLE" $res}}
+{{- end }}
+{{- end }}
+}
+```
 
-{{ if .Config.Variables }}
-## Inputs
+## Constraints
 
-| Name | Description | Type | Default |{{ if $.PrintRequired }} Required |{{ end }}
-|------|-------------|:----:|:-----:|{{ if $.PrintRequired }}:-----:|{{ end }}
-{{ range .Config.Variables -}}
-| {{ .Name }} | {{ normalize .Description }} | {{ .Type.Printable }} | {{ normalize .Default }} |{{ if $.PrintRequired }} {{ humanize .Required }} |{{ end }}
-{{ end -}}
-{{ end -}}
+{{ if .RequiredCore -}}
+Terraform required version {{ .RequiredCore -}}
+{{- end }}
 
-{{- if .Config.Outputs }}
+{{ with .RequiredProviders -}}
+### Providers
+{{ range $provider, $version := . }}
+* {{ $provider }}
+{{- with $version }} {{ $version }}{{ end }}
+{{- end }}
+{{- end }}
+
+{{ with (.Variables |sortByRequired) -}}
+## Variables
+
+| Name | Type | Default | Required | Description |
+| ---- | ---- | ------- | -------- | ----------- |
+{{- range $_, $res := . }}
+{{- $guess := guessType $res }}
+| {{ $res.Name }} | {{ $guess.Type }} | {{$res.Default |normalize}} | {{$guess.Required |humanize}} | {{ $res.Description |normalize }} |
+{{- end }}
+{{- end }}
+
+{{ with .Outputs -}}
 ## Outputs
 
 | Name | Description |
-|------|-------------|
-{{ range .Config.Outputs -}}
-| {{ .Name }} | {{ normalize .Description }} |
-{{ end -}}
-{{ end -}}
+| ---- | ----------- |
+{{- range $_, $res := . }}
+| {{ $res.Name }} | {{ $res.Description }} |
+{{- end }}
+{{- end }}
+
+{{ if and .DataResources .ManagedResources -}}
+## Resources
+
+{{ with .DataResources -}}
+### Data
+
+| ID  | Type | Name | Provider |
+| --- | ---- | ---- | -------- |
+{{- range $id, $res := . }}
+| {{ $id }} | {{ $res.Type }} | {{ $res.Name }} | {{ $res.Provider.Name }} |
+{{- end }}
+{{- end }}
+
+{{ with .ManagedResources -}}
+### Managed
+
+| ID  | Type | Name | Provider |
+| --- | ---- | ---- | -------- |
+{{- range $id, $res := . }}
+| {{ $id }} | {{ $res.Type }} | {{ $res.Name }} | {{ $res.Provider.Name }} |
+{{- end }}
+{{- end }}
+
+{{- end }}
+
+{{ with .ModuleCalls -}}
+## Modules
+
+| Name  | Version | Source |
+| ----- | ------- | ------ |
+{{- range $id, $res := . }}
+| {{ $res.Name }} | {{ $res.Version |normalize}} | {{ $res.Source }} |
+{{- end }}
+{{- end }}

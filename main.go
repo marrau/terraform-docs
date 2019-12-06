@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/hashicorp/terraform/config"
+	"github.com/hashicorp/terraform-config-inspect/tfconfig"
 	"github.com/segmentio/terraform-docs/print"
 
 	"github.com/tj/docopt"
@@ -16,8 +16,7 @@ var version = "dev"
 
 const usage = `
   Usage:
-    terraform-docs [--no-required] [md | markdown | tpl <template-path>] <path>
-    terraform-docs [--sort-by-required] [md | markdown | tpl <template-path>] <path>
+    terraform-docs [md | markdown | tpl <template-path>] <path>
     terraform-docs -h | --help
 
   Examples:
@@ -25,25 +24,14 @@ const usage = `
     # View inputs and outputs
     $ terraform-docs ./my-module
 
-    # View inputs and outputs for variables.tf and outputs.tf only
-    $ terraform-docs variables.tf outputs.tf
-
     # Generate markdown tables of inputs and outputs
 	$ terraform-docs md ./my-module
 
-    # Generate markdown tables of inputs and outputs, but don't print "Required" column
-    $ terraform-docs --no-required md ./my-module
-
-    # Generate markdown tables of inputs and outputs for the given module and ../config.tf
-	$ terraform-docs md ./my-module ../config.tf
-	
     # Generate templated output
     $ terraform-docs tpl path/to/template-file ./my-module		
 
   Options:
     -h, --help          Show help information
-    --no-required       Generate markdown tables of inputs and outputs, but don't print "Required" column
-    --sort-by-required  Sort the required inputs to the top of the output table
 `
 
 func main() {
@@ -52,28 +40,24 @@ func main() {
 		log.Fatal(err)
 	}
 
-	cfg, err := config.LoadDir(args["<path>"].(string))
-	if err != nil {
-		log.Fatal(err)
+	module, diags := tfconfig.LoadModule(args["<path>"].(string))
+
+	if diags.HasErrors() {
+		log.Fatal(diags.Error())
 	}
-
-	sortByRequired := args["--sort-by-required"].(bool)
-	print.Sort(cfg, sortByRequired)
-
-	printRequired := !args["--no-required"].(bool)
 
 	var out string
 
 	switch {
 	case args["markdown"].(bool):
-		out, err = print.Template("markdown", cfg, printRequired)
+		out, err = print.Template("markdown", module)
 	case args["md"].(bool):
-		out, err = print.Template("markdown", cfg, printRequired)
+		out, err = print.Template("markdown", module)
 	case args["tpl"].(bool):
 		templateName := args["<template-path>"].(string)
-		out, err = print.TemplateByFile(templateName, cfg, printRequired)
+		out, err = print.TemplateByFile(templateName, module)
 	default:
-		out, err = print.Template("pretty", cfg, printRequired)
+		out, err = print.Template("pretty", module)
 	}
 
 	if err != nil {
