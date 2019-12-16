@@ -99,7 +99,7 @@ func humanize(def bool) string {
 //  * Double newlines are converted to <br><br>
 //  * A second pass replaces all other newlines with spaces
 func normalizeMarkdownDesc(s string) string {
-	return strings.Replace(strings.Replace(strings.TrimSpace(s), "\n\n", "<br><br>", -1), "\n", " ", -1)
+	return strings.Replace(strings.TrimSpace(s), "\n", "<br>", -1)
 }
 
 // normalize prints out "-" for empty strings else does the same as normalizeMarkdownDesc
@@ -108,7 +108,7 @@ func normalize(in interface{}) interface{} {
 		if s == "" {
 			return "-"
 		}
-		return normalizeMarkdownDesc(s)
+		return template.HTML(normalizeMarkdownDesc(s))
 	}
 
 	return in

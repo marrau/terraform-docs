@@ -33,10 +33,10 @@ func (a inputsByRequired) Less(i, j int) bool {
 	switch {
 	// i required, j not: i gets priority
 	case ai && !aj:
-		return true
+		return false
 	// j required, i not: i does not get priority
 	case !ai && aj:
-		return false
+		return true
 	// Otherwise, sort by name
 	default:
 		return a[i].Name < a[j].Name

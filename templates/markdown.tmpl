@@ -1,11 +1,3 @@
-{{- $readme := (printf "%s/HEAD.md" .Path) }}
-{{- if fileExists $readme }}
-{{ include $readme . }}
-{{ else }}
-# {{ .Path }}
-{{ end -}}
-
-## Example
 
 {{- define "VARIABLE_VALUE" -}}
     {{- $guess := guessType . -}}    
@@ -30,10 +22,63 @@
     {{- end }}
 {{- end }}
 
+{{- define "VARIABLE_VALUE_BR" -}}
+    {{- $guess := guessType . -}}    
+    {{- if eq $guess.Type "map" -}} 
+        {{- with $guess.Value -}}
+        {<br>
+            {{- range $k, $v := . -}}
+                &nbsp;&nbsp;&nbsp;&nbsp;{{$k}} = {{template "VARIABLE_VALUE" $v }},<br>
+            {{- end -}}
+        }
+        {{- else -}}
+        {}
+        {{- end -}}
+    {{- else if eq $guess.Type "object" -}}
+        {{- with $guess.Nested -}}
+        {<br>
+            {{- range $_, $v := . -}}
+                &nbsp;&nbsp;&nbsp;&nbsp;{{$v.Name}} = {{template "VARIABLE_VALUE" $v.Value }}<br>
+            {{- end -}}
+        }
+        {{- else -}}
+        {}
+        {{- end -}}
+    {{- else if eq $guess.Type "list" -}} 
+        {{- with $guess.Value -}}
+        [<br>
+            {{- range $_, $v := . -}}
+            &nbsp;&nbsp;&nbsp;&nbsp;{{template "VARIABLE_VALUE" $v }},<br>
+            {{- end -}}
+        ]
+        {{- else -}}
+        []
+        {{- end -}}
+    
+    {{- else if eq $guess.Type "string" -}} 
+        "{{ $guess.Value }}"
+    {{- else }} {{ $guess.Value }}
+    {{- end -}}
+{{- end }}
+
 {{- define "VARIABLE" }}
     {{ .Name }} = {{template "VARIABLE_VALUE" .}}
 {{- end }}
 
+{{- $readme := (printf "%s/MAIN.md" .Path) }}
+{{- $example := (printf "%s/EXAMPLE.md" .Path) }}
+
+{{- if fileExists $readme }}
+{{ include $readme . }}
+{{ else }}
+# {{ .Path }}
+{{ end -}}
+
+## Example
+
+{{ if fileExists $example -}}
+{{ include $example . }}
+{{- else -}}
 ```hcl
 module "example" {
     source = "{{.Path}}"
@@ -45,6 +90,7 @@ module "example" {
 {{- end }}
 }
 ```
+{{- end }}
 
 ## Constraints
 
@@ -56,7 +102,6 @@ Terraform required version {{ .RequiredCore -}}
 ### Providers
 {{ range $provider, $version := . }}
 * {{ $provider }}
-{{- with $version }} {{ $version }}{{ end }}
 {{- end }}
 {{- end }}
 
@@ -67,7 +112,7 @@ Terraform required version {{ .RequiredCore -}}
 | ---- | ---- | ------- | -------- | ----------- |
 {{- range $_, $res := . }}
 {{- $guess := guessType $res }}
-| {{ $res.Name }} | {{ $guess.Type }} | {{$res.Default |normalize}} | {{$guess.Required |humanize}} | {{ $res.Description |normalize }} |
+| {{ $res.Name }} | {{ $guess.Type }} | {{template "VARIABLE_VALUE_BR" .}} | {{$guess.Required |humanize}} | {{ $res.Description |normalize }} |
 {{- end }}
 {{- end }}
 

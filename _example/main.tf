@@ -23,7 +23,11 @@ provider "google-beta" {
 
 // liasdhfjasodifuh
 variable "subnet_ids" {
-  description = "a comma-separated list of subnet IDs"
+  description = <<EOL
+  a comma-separated list of subnet IDs
+  asd
+  EOL
+  
   type        = string
 }
 
@@ -61,7 +65,18 @@ variable "richobject" {
 }
 
 variable "amis" {
-  description = "more things"
+  description = <<EOD
+  This is a super long description.
+  
+  Using heredoc-syntax it is possible to
+  create simple multiline description inside
+  terraform.
+  
+  With this we can create a much more meaningful 
+  documentation of specific variables in case there
+  is the need to describe a lot of stuff
+  before we can actually use it.
+  EOD
 
   default = {
     "us-east-1"      = "ami-8f7687e2"
