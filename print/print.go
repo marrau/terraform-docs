@@ -17,6 +17,7 @@ import (
 
 	"github.com/Masterminds/sprig"
 	"github.com/hashicorp/terraform-config-inspect/tfconfig"
+	"github.com/segmentio/terraform-docs/functions"
 )
 
 // Template uses a txt/template to handle print of the documentation using a template-sample
@@ -49,13 +50,13 @@ func TemplateByFile(templateFile string, cfg *tfconfig.Module) (string, error) {
 func TemplateByString(templateContent string, cfg *tfconfig.Module) (string, error) {
 	buf := new(bytes.Buffer)
 
-	funcMap := sprig.FuncMap()
+	funcMap := functions.Apply(sprig.FuncMap())
 	funcMap["normalize"] = normalize
 	funcMap["humanize"] = humanize
 	funcMap["include"] = TemplateByFile
 	funcMap["html"] = htmlSafe
 	funcMap["tfDocUrl"] = getTerraformDocumentationURL
-	funcMap["fileExists"] = fileExists
+	funcMap["fileExists"] = FileExists
 	funcMap["relPath"] = relPath
 	funcMap["guessType"] = guessType
 	funcMap["sortByRequired"] = sortByRequired
@@ -131,8 +132,8 @@ func getTerraformDocumentationURL(object interface{}) string {
 	return ""
 }
 
-// Exists reports whether the named file or directory exists.
-func fileExists(name string) bool {
+// FileExists reports whether the named file or directory exists.
+func FileExists(name string) bool {
 	if _, err := os.Stat(name); err != nil {
 		if os.IsNotExist(err) {
 			return false

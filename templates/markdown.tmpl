@@ -61,8 +61,7 @@
     {{- end -}}
 {{- end }}
 
-{{- define "VARIABLE" }}
-    {{ .Name }} = {{template "VARIABLE_VALUE" .}}
+{{- define "VARIABLE" }}{{ .Name }} = {{template "VARIABLE_VALUE" .}}
 {{- end }}
 
 {{- $readme := (printf "%s/MAIN.md" .Path) }}
@@ -81,7 +80,7 @@
 {{- else -}}
 ```hcl
 module "example" {
-    source = "{{.Path}}"
+    source = "git::{{gitUrl .Path}}"
         
     {{- with .Variables }}    
 {{- range $_, $res := . }}

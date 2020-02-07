@@ -55,7 +55,11 @@ func main() {
 		out, err = print.Template("markdown", module)
 	case args["tpl"].(bool):
 		templateName := args["<template-path>"].(string)
-		out, err = print.TemplateByFile(templateName, module)
+		if print.FileExists(templateName) {
+			out, err = print.TemplateByFile(templateName, module)
+		} else {
+			out, err = print.Template(templateName, module)
+		}
 	default:
 		out, err = print.Template("pretty", module)
 	}
